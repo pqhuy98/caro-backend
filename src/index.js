@@ -88,9 +88,10 @@ const matchMaker = new MatchMaker({
 	foundMatch: (playerIds) => {
 		console.log("found ", playerIds);
 		let matchId = gameRunner.newGame(playerIds, {});
+		let match = { matchId }
 		playerIds.forEach((playerId) => {
 			playerStatus.inMatch(playerId, matchId);
-			matchMaking.to(playerId).emit(FOUND_MATCH, matchId);
+			matchMaking.to(playerId).emit(FOUND_MATCH, match);
 			setTimeout(() => disconnectAll(matchMaking, playerId), 0);
 		});
 	},
@@ -150,15 +151,16 @@ gameBroadcast.on("connect", socket => {
 		// Connected to match
 		let matchId = data;
 		let playerId = socket.playerId;
+		let player = { playerId }
 		if (gameRunner.has(matchId)) {
 			callback("OK");
 		} else {
 			callback(error("Match not found."));
 			return;
 		}
-		socket.emit(LATEST, JSON.stringify(gameRunner.latest(matchId)));
+		socket.emit(LATEST, gameRunner.latest(matchId));
 		socket.join(matchId);
-		gameBroadcast.to(matchId).emit(CONNECT, JSON.stringify({ playerId }));
+		gameBroadcast.to(matchId).emit(CONNECT, player);
 
 		socket.on(ACTION, (data) => {
 			let action = JSON.parse(data);
@@ -166,19 +168,19 @@ gameBroadcast.on("connect", socket => {
 			let err = gameRunner.act(matchId, action);
 			if (err === null) {
 				// ok
-				gameBroadcast.to(matchId).emit(ACTION, JSON.stringify(action));
+				gameBroadcast.to(matchId).emit(ACTION, action);
 			}
 		});
 
 		socket.once(QUIT, (data, callback) => {
-			gameBroadcast.to(matchId).emit(QUIT, JSON.stringify({ playerId }));
+			gameBroadcast.to(matchId).emit(QUIT, player);
 			disconnectAll(gameBroadcast, playerId);
 			playerStatus.none(playerId);
 			matchMaker.allow(playerId);
 		});
 
 		socket.on("disconnect", () => {
-			gameBroadcast.to(matchId).emit(DISCONNECT, JSON.stringify({ playerId }));
+			gameBroadcast.to(matchId).emit(DISCONNECT, player);
 		});
 	});
 });
